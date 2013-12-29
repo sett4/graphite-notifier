@@ -87,7 +87,7 @@ class MetricStage extends SymmetricPipelineStage[PipelineContext, Metric, String
     }
     override def eventPipeline = {
       line: String => {
-        val cols = line.split("\t")
+        val cols = line.trim.split(" ")
         /* TODO Error handling */
         val path: String = cols(0)
         val value = cols(1) toDouble
