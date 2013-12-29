@@ -1,19 +1,26 @@
 package graphitenotifier.server
 
-import akka.actor.{Props, ActorSystem}
-import akka.actor.{ Actor, ActorRef, Props }
+import akka.actor._
 import akka.io._
 import akka.util.ByteString
 import java.net.InetSocketAddress
 
-import scala.util.Success
+import java.util.Date
 import graphitenotifier.Metric
+import akka.io.IO
+import scala.util.Success
+import scala.collection.mutable
+import scala.collection.mutable.{SynchronizedMap, HashMap}
 
 
-class PlaintextServer(inetSocketAddress: InetSocketAddress, metricDispatcherProps: Props) extends Actor {
+class PlaintextServer(val inetSocketAddress: InetSocketAddress, val checks: List[Check], val notifierProps: List[Props]) extends Actor {
 
   import Tcp._
   import context.system
+
+  val notifier = context.actorOf(Props(classOf[BaseNotifier], notifierProps))
+  val liveEvents = new HashMap[String, CheckResult] with SynchronizedMap[String, CheckResult]
+
 
   override def preStart = {
     IO(Tcp) ! Bind(self, inetSocketAddress)
@@ -27,21 +34,24 @@ class PlaintextServer(inetSocketAddress: InetSocketAddress, metricDispatcherProp
 
     case Connected(remote, local) ⇒ {
       val connection = sender
-      val metricDispatcher = context.actorOf(metricDispatcherProps)
-      val handler = context.actorOf(Props(classOf[PlaintextHandler],metricDispatcher))
+
+      val handler = context.actorOf(Props(classOf[PlaintextHandler],checks, liveEvents, notifier.path))
       connection ! Register(handler)
     }
   }
 
 }
 
-class PlaintextHandler(metricDispatcher: ActorRef) extends Actor {
+class PlaintextHandler(val checks: List[Check], val liveEvents: mutable.SynchronizedMap[String, CheckResult], val notifierPath: ActorPath) extends Actor {
   import Tcp._
 
-  val pipelineStages = new MetricStage >> new StringStage >> new ByteStringStage
+  val pipelineStages = new EventStage(liveEvents) >> new CheckResultStage(checks) >> new MetricStage >> new StringStage >> new ByteStringStage
   val pipeLineInjector = PipelineFactory.buildWithSinkFunctions(new PipelineContext {}, pipelineStages)(
       self ! _, // command
-      metricDispatcher ! _  // event
+      _ match {
+        case Success(event) => context.actorSelection(notifierPath / "*") ! event  // event
+        case _ =>
+      }
   )
 
   def receive = {
@@ -81,7 +91,7 @@ class MetricStage extends SymmetricPipelineStage[PipelineContext, Metric, String
         /* TODO Error handling */
         val path: String = cols(0)
         val value = cols(1) toDouble
-        val timestamp: Long = java.lang.Long.parseLong(cols(2))
+        val timestamp: Date = new Date(java.lang.Long.parseLong(cols(2)))
         context.singleEvent(Metric(path, value, timestamp))
       }
     }

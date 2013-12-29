@@ -2,19 +2,16 @@ package graphitenotifier
 
 import akka.actor.Actor
 import scala.util.Success
+import java.util.Date
 
-case class Metric(path: String, value: Double, timestamp: Long) {
+case class Metric(path: String, value: Double, timestamp: Date) {
   def toPlaintext = {
-    "%s\t%f\t%d" format(path, value, timestamp)
+    "%s\t%f\t%s" format(path, value, timestamp)
   }
 }
 
 class MetricDispatcher extends Actor {
   def receive = {
-    case Success(line: String) => {
-      print(this.toString+": ")
-      println(line)
-    }
     case Success(update: Metric) => {
       print(this.toString+": ")
       println(update)
