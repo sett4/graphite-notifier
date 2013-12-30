@@ -91,7 +91,7 @@ class MetricStage extends SymmetricPipelineStage[PipelineContext, Metric, String
         /* TODO Error handling */
         val path: String = cols(0)
         val value = cols(1) toDouble
-        val timestamp: Date = new Date(java.lang.Long.parseLong(cols(2)))
+        val timestamp: Date = new Date(java.lang.Long.parseLong(cols(2))*1000)
         context.singleEvent(Metric(path, value, timestamp))
       }
     }

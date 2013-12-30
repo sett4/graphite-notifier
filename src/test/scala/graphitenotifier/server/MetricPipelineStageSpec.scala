@@ -2,12 +2,14 @@ package graphitenotifier.server
 
 import org.scalatest._
 
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.matchers._
+
 import java.util.Date
 import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor._
 import graphitenotifier.Metric
 import akka.io.{PipelineFactory, PipelineContext}
+import akka.util.ByteString
 
 
 class MetricPipelineStageSpec(_system: ActorSystem) extends TestKit(_system)
@@ -42,7 +44,33 @@ with ImplicitSender with WordSpec with ShouldMatchers with BeforeAndAfterAll {
     }
   }
 
-  "metric to checkResult stage" should {
+  "StringStage" should {
+    "split multiline to a line" in {
+      val pipelinePort = {
+        val ctx = new PipelineContext {}
+        PipelineFactory.buildFunctionTriple(ctx, new ByteStringStage())
+      }
+      val multiline = ByteString("org.test.hoge 123 1388350836\norg.test.hoge 123 1388350836\n")
+      val list: List[ByteString] = pipelinePort.events(multiline)._1.toList
+      list.size should be (2)
+    }
+  }
+
+  "MetricStage" should {
+    "convert 1 line graphite plaintext protocol" in {
+      val pipelinePort = {
+        val ctx = new PipelineContext {}
+        PipelineFactory.buildFunctionTriple(ctx, new MetricStage())
+      }
+      val metrics: Iterable[Metric] = pipelinePort.events("org.test.hoge 123 1388350836")._1
+      metrics.size should be (1)
+      metrics.head.path should be ("org.test.hoge")
+      metrics.head.value should be (123)
+      metrics.head.timestamp should be (new Date(1388350836L*1000L))
+    }
+  }
+
+  "checkResult stage" should {
     "convert to checkResult" in {
       val checkerList = List(new Check(".*".r, v => if (v > 50) { Level.FATAL } else { Level.SAFE}))
       val pipelinePort = {

@@ -8,7 +8,6 @@ import graphitenotifier.Metric
 import scala.Some
 
 class CheckResultStage(val checks: List[Check]) extends SymmetricPipelineStage[PipelineContext, CheckResult, Metric] {
-  val STILL_INTERVAL: Long = 60*10*1000
   val EMPTY_CHECK_RESULT = CheckResult(Metric("", 0, new Date(0)), Level.SAFE)
 
   def apply(ctx: PipelineContext): PipePair[CheckResult, Metric, CheckResult, Metric] = new SymmetricPipePair[CheckResult, Metric] {

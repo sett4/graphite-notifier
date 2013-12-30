@@ -3,8 +3,6 @@ package graphitenotifier.server
 import scala.util.matching.Regex
 import akka.actor.{ActorRef, Props, Actor}
 
-case class NotifierList() {}
-
 class BaseNotifier(val notifierProps: List[Props]) extends Actor {
   val notifiers: List[ActorRef] = notifierProps.map( (props) => {
     context.actorOf(props)
