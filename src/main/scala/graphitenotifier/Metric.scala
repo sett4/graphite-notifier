@@ -10,11 +10,3 @@ case class Metric(path: String, value: Double, timestamp: Date) {
   }
 }
 
-class MetricDispatcher extends Actor {
-  def receive = {
-    case Success(update: Metric) => {
-      print(this.toString+": ")
-      println(update)
-    }
-  }
-}
