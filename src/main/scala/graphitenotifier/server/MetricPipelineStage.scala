@@ -8,7 +8,7 @@ import graphitenotifier.Metric
 import scala.Some
 
 class CheckResultStage(val checks: List[Check]) extends SymmetricPipelineStage[PipelineContext, CheckResult, Metric] {
-  val EMPTY_CHECK_RESULT = CheckResult(Metric("", 0, new Date(0)), Level.SAFE)
+  val EMPTY_CHECK_RESULT = CheckResult(Metric("", 0, new Date(0)), Level.OK)
 
   def apply(ctx: PipelineContext): PipePair[CheckResult, Metric, CheckResult, Metric] = new SymmetricPipePair[CheckResult, Metric] {
     def commandPipeline = { cr: CheckResult => ctx.singleCommand(cr.metric) }
@@ -83,10 +83,10 @@ class EventStage(liveEvents: scala.collection.mutable.Map[String, CheckResult]) 
 
   def nextState(checkResult: CheckResult): Option[State] = {
     liveEvents.get(checkResult.metric.path) match {
-      case None if checkResult.level > Level.SAFE => {
+      case None if checkResult.level > Level.OK => {
         Some(State.FAIL)
       } // 新たに発生した
-      case Some(CheckResult(_, l)) if l != checkResult.level && checkResult.level == Level.SAFE =>  {
+      case Some(CheckResult(_, l)) if l != checkResult.level && checkResult.level == Level.OK =>  {
         Some(State.RECOVER)
       }// 回復してた
       case Some(CheckResult(m, checkResult.level)) if timeElapsed(checkResult.metric.timestamp, m.timestamp, STILL_INTERVAL) => {
@@ -119,12 +119,11 @@ class Check(pathPattern: Regex, getLevel: Check.ValueToLevelFunc) {
 }
 
 object Level {
-  case object FATAL extends Level(100)
   case object CRITICAL extends Level(80)
-  case object WARN extends Level(70)
-  case object SAFE extends Level(0)
+  case object WARNING extends Level(50)
+  case object OK extends Level(0)
 
-  val values = Array(FATAL, CRITICAL, WARN, SAFE)
+  val values = Array(CRITICAL, WARNING, OK)
 }
 
 sealed abstract class Level(val levelOrder: Int) extends Ordered[Level] {

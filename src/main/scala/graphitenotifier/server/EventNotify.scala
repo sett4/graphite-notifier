@@ -32,7 +32,7 @@ abstract class Notifier(pathPattern: Regex, level: Level) extends Actor {
   def notify(event: Event)
 }
 
-class ConsoleNotifier(pathPattern: Regex = ".*".r, level: Level = Level.SAFE) extends Notifier(pathPattern, level) {
+class ConsoleNotifier(pathPattern: Regex = ".*".r, level: Level = Level.OK) extends Notifier(pathPattern, level) {
   def notify(event: Event) = {
     println(event)
   }
