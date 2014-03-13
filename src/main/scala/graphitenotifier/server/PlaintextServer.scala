@@ -11,6 +11,8 @@ import akka.io.IO
 import scala.util.Success
 import scala.collection.mutable
 import scala.collection.mutable.{SynchronizedMap, HashMap}
+import graphitenotifier.notifier.BaseNotifier
+import graphitenotifier.{Check, CheckResult}
 
 
 class PlaintextServer(val inetSocketAddress: InetSocketAddress, val checks: List[Check], val notifierProps: List[Props]) extends Actor {

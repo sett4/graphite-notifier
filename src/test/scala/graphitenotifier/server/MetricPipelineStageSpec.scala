@@ -10,7 +10,7 @@ import akka.actor._
 import graphitenotifier.Metric
 import akka.io.{PipelineFactory, PipelineContext}
 import akka.util.ByteString
-
+import graphitenotifier.{Check, CheckResult, Event, Level, State}
 
 class MetricPipelineStageSpec(_system: ActorSystem) extends TestKit(_system)
 with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
@@ -71,25 +71,29 @@ with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll
 
   "checkResult stage" should {
     "convert to checkResult" in {
-      val checkerList = List(new Check(".*".r, v => if (v > 50) { Level.CRITICAL } else { Level.OK}))
+      val checkerList = List(new Check(".*".r, v => if (v > 50) { Level.CRITICAL } else if (v > 30) { Level.WARNING } else { Level.OK}))
       val pipelinePort = {
         val ctx = new PipelineContext {}
         PipelineFactory.buildFunctionTriple(ctx, new CheckResultStage(checkerList))
       }
 
-      val fatalMetric = Metric("hoge", 100, new Date())
+      val criticalMetric = Metric("hoge", 100, new Date())
+      val warningMetric = Metric("hoge", 40, new Date())
       val safeMetric = Metric("hoge", 0, new Date())
-      pipelinePort.events(fatalMetric)._1.head.level should be (Level.CRITICAL)
+      pipelinePort.events(criticalMetric)._1.head.level should be (Level.CRITICAL)
       pipelinePort.events(safeMetric)._1.head.level should be (Level.OK)
-      pipelinePort.events(fatalMetric)._1.head.level should be (Level.CRITICAL)
+      pipelinePort.events(warningMetric)._1.head.level should be (Level.WARNING)
+      pipelinePort.events(criticalMetric)._1.head.level should be (Level.CRITICAL)
 
    }
   }
 
   "event stage" should {
-    val fatalMetric = Metric("hoge", 100, new Date())
+    val criticalMetric = Metric("hoge", 100, new Date())
+    val warningMetric = Metric("hoge", 40, new Date())
     val safeMetric = Metric("hoge", 0, new Date())
-    val fatalResult = CheckResult(fatalMetric, Level.CRITICAL)
+    val fatalResult = CheckResult(criticalMetric, Level.CRITICAL)
+    val warningResult = CheckResult(warningMetric, Level.WARNING)
     val safeResult = CheckResult(safeMetric, Level.OK)
 
     "convert to Event" in {
@@ -104,6 +108,10 @@ with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll
       val comeEvent: Event = pipelinePort.events(fatalResult)._1.head
       comeEvent.state should be (State.FAIL)
       comeEvent.level should be (Level.CRITICAL)
+
+      val com2Event: Event = pipelinePort.events(warningResult)._1.head
+      com2Event.state should be (State.LEVEL_CHANGED)
+      com2Event.level should be (Level.WARNING)
 
       val recoverEvent: Event = pipelinePort.events(safeResult)._1.head
       recoverEvent.state should be (State.RECOVER)

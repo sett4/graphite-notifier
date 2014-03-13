@@ -1,10 +1,9 @@
 package graphitenotifier.server
 
 
-import scala.util.matching.Regex
 import java.util.Date
 import akka.io._
-import graphitenotifier.Metric
+import graphitenotifier.{Metric, Check, CheckResult, Level, State, Event}
 import scala.Some
 
 class CheckResultStage(val checks: List[Check]) extends SymmetricPipelineStage[PipelineContext, CheckResult, Metric] {
@@ -86,9 +85,12 @@ class EventStage(liveEvents: scala.collection.mutable.Map[String, CheckResult]) 
       case None if checkResult.level > Level.OK => {
         Some(State.FAIL)
       } // 新たに発生した
-      case Some(CheckResult(_, l)) if l != checkResult.level && checkResult.level == Level.OK =>  {
+      case Some(CheckResult(_, l)) if l != checkResult.level && checkResult.level == Level.OK => {
         Some(State.RECOVER)
       }// 回復してた
+      case Some(CheckResult(_, l)) if l != checkResult.level => {
+        Some(State.LEVEL_CHANGED)
+      }// なんか状態変わった
       case Some(CheckResult(m, checkResult.level)) if timeElapsed(checkResult.metric.timestamp, m.timestamp, STILL_INTERVAL) => {
         Some(State.STILL)
       } // 状態変わってないけど続いてる
@@ -102,43 +104,3 @@ class EventStage(liveEvents: scala.collection.mutable.Map[String, CheckResult]) 
 
 
 }
-
-case class CheckResult(metric: Metric, level: Level)
-
-object Check {
-  type ValueToLevelFunc = (Double) => Level
-}
-
-class Check(pathPattern: Regex, getLevel: Check.ValueToLevelFunc) {
-  def check(m: Metric): Option[CheckResult] = {
-    pathPattern.findFirstIn(m.path) match {
-      case s: Some[String] => Some(CheckResult(m, getLevel(m.value)))
-      case _ => None
-    }
-  }
-}
-
-object Level {
-  case object CRITICAL extends Level(80)
-  case object WARNING extends Level(50)
-  case object OK extends Level(0)
-
-  val values = Array(CRITICAL, WARNING, OK)
-}
-
-sealed abstract class Level(val levelOrder: Int) extends Ordered[Level] {
-  val name = toString
-  def compare(that: Level): Int = { this.levelOrder  - that.levelOrder }
-}
-
-object State {
-  case object FAIL extends State
-  case object STILL extends State
-  case object RECOVER extends State
-}
-
-sealed abstract class State {
-  val name = toString
-}
-
-case class Event(metric: Metric, level: Level, state: State)
